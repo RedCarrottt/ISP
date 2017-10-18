@@ -1,0 +1,10 @@
+1) convolution layer를 하나만 사용하는 model 확보
+
+2) 기존 conv_layer에서 im2col을 호출하여 확보한 Dtype* col_buff를 매개변수로 전달받도록 변경
+2-1) conv_layer의 함수를 호출할 때 해당 매개변수를 넘겨줄 수 있도록 호출하는 파트 변경
+
+3) image_data_layer에서 input read할 때, blob과 col_buff 두 가지를 반환하도록 변경
+3-1) col_buff를 반환했을 때, 이를 활용할 수 있도록 상위 Net 구조 확인
+
+4) image_data_layer의 작업을 FTL로 내리고, blob구성 및 im2col에 필요한 parameter를 담아 write 보낼 수 있도록 처리
+4-1) write, fsync, read 순서로 직접 호출하도록 변경
