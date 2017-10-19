@@ -1,3 +1,6 @@
 [submodule "caffe"]
 	path = caffe
 	url = https://github.com/halfways/caffe
+[submodule "darknet"]
+	path = darknet
+	url = https://github.com/halfways/darknet
