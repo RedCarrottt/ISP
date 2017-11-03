@@ -39,24 +39,66 @@ static volatile UINT32 g_erase_fail_count;
 
 static UINT32 g_scan_list_entries[NUM_BANKS];
 
-
+// @halfways
 #define PARAMETER_LBN  (2048)
 #define WRITE_LBN      (8192)
 #define WRITE_AREA_SIZE (INPUT_BUF_BYTES / 512)
 #define READ_LBN       (2097152)
 #define READ_AREA_SIZE (OUTPUT_BUF_BYTES / 512)
+#define TRIGGER_LBN    (4096)
 
-static UINT32 input_parms[16];
-struct _im2col_param {
-	int conv_in_channels;
-	int conv_input_shape[2];
-	int kernel_shape[2];
-	int pad[2];
-	int stride[2];
-	int dilation[2];
-};
-static struct _im2col_param im2col_param;
+static UINT32 input_param[16];
 
+void im2col_cpu(UINT32 data_im, UINT32 const channels,
+	UINT32 const height, UINT32 const width, UINT32 const kernel_h, UINT32 const kernel_w,
+	UINT32 const pad_h, UINT32 const pad_w,
+	UINT32 const stride_h, UINT32 const stride_w,
+	UINT32 const dilation_h, UINT32 const dilation_w,
+	UINT32 data_col) {
+
+	UINT32 const output_h = (height + 2 * pad_h -
+		(dilation_h * (kernel_h - 1) + 1)) / stride_h + 1;
+	UINT32 const output_w = (width + 2 * pad_w -
+		(dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
+	UINT32 const channel_size = height * width;
+	UINT32 temp;
+
+	for (UINT32 channel = channels; channel--; data_im += channel_size) {
+		for (UINT32 kernel_row = 0; kernel_row < kernel_h; kernel_row++) {
+			for (UINT32 kernel_col = 0; kernel_col < kernel_w; kernel_col++) {
+				UINT32 input_row = -pad_h + kernel_row * dilation_h;
+				for (UINT32 output_rows = output_h; output_rows; output_rows--) {
+					if (!(input_row < height)) {
+						for (UINT32 output_cols = output_w; output_cols; output_cols--) {
+							//*(data_col++) = 0;
+							write_dram_32(data_col, 0);
+							data_col += sizeof(UINT32);
+						}
+					}
+					else {
+						UINT32 input_col = -pad_w + kernel_col * dilation_w;
+						for (UINT32 output_col = output_w; output_col; output_col--) {
+							if (input_col < width) {
+								//*(data_col++) = data_im[input_row * width + input_col];
+								temp = read_dram_32(data_im + 
+									sizeof(UINT32) * (input_row * width + input_col));
+								write_dram_32(data_col, temp);
+								data_col += sizeof(UINT32);
+							}
+							else {
+								//*(data_col++) = 0;
+								write_dram_32(data_col, 0);
+								data_col += sizeof(UINT32);
+							}
+							input_col += stride_w;
+						}
+					}
+					input_row += stride_h;
+				}
+			}
+		}
+	}
+}
 
 void ftl_open(void)
 {
@@ -389,21 +431,32 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 
 			continue;
 		}
-		else if (lba == 2048)
+		else if (lba == PARAMETER_LBN)
 		{
-			uart_printf("parm write: %d \n", lba);
+			uart_printf("param write: %d \n", lba);
 			// get parameter
-			_mem_copy(input_parms, WR_BUF_PTR(g_ftl_write_buf_id), 16 * 4);
+			_mem_copy(input_param, WR_BUF_PTR(g_ftl_write_buf_id), 16 * 4);
 
-			im2col_param.conv_in_channels = input_parms[0];
-			int k = 1;
-			for (int i = 0; i < 2; i++) {
-				im2col_param.conv_input_shape[i] = input_parms[k++];
-				im2col_param.kernel_shape[i] = input_parms[k++];
-				im2col_param.pad[i] = input_parms[k++];
-				im2col_param.stride[i] = input_parms[k++];
-				im2col_param.dilation[i] = input_parms[k++];
-			}
+			sect_offset = 0;
+			remain_sectors -= num_sectors_to_write;
+			lpage_addr++;
+
+			g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
+			SETREG(BM_STACK_RDSET, g_ftl_write_buf_id);	// change bm_read_limit
+			SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
+
+			break;
+		}
+		else if (lba == TRIGGER_LBN)
+		{
+			uart_printf("im2col triggered : %d \n", lba);
+			im2col_cpu(INPUT_BUF_ADDR, input_param[0],
+				input_param[1], input_param[2],
+				input_param[3], input_param[4],
+				input_param[5], input_param[6],
+				input_param[7], input_param[8],
+				input_param[9], input_param[10],
+				OUTPUT_BUF_ADDR);
 
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
