@@ -48,6 +48,7 @@ static UINT32 g_scan_list_entries[NUM_BANKS];
 #define TRIGGER_LBN    (4096)
 
 static UINT32 input_param[16];
+static UINT32 flag = 0;
 
 void im2col_cpu(UINT32 data_im, UINT32 const channels,
 	UINT32 const height, UINT32 const width, UINT32 const kernel_h, UINT32 const kernel_w,
@@ -73,26 +74,27 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 	uart_printf("dilation_h : %d, dilation_w : %d\n", dilation_h, dilation_w);
 	uart_printf("total loop : %d\n", channels * kernel_h * kernel_w * output_h * output_w);
 	*/
-	uart_printf("input buf : %d", data_im);
-	uart_printf("output buf : %d", data_col);
-
+	//uart_printf("input buf : %d", data_im);
+	//uart_printf("output buf : %d", data_col);
+	
 	for (UINT32 channel = channels; channel--; data_im += channel_size) {
 		for (UINT32 kernel_row = 0; kernel_row < kernel_h; kernel_row++) {
 			for (UINT32 kernel_col = 0; kernel_col < kernel_w; kernel_col++) {
 				UINT32 input_row = -pad_h + kernel_row * dilation_h;
 				for (UINT32 output_rows = output_h; output_rows; output_rows--) {
-					if (!(input_row < height) ) {
+					if (!((input_row < height) && (input_row >= 0))) {
 						for (UINT32 output_cols = output_w; output_cols; output_cols--) {
 							//*(data_col++) = 0;
 							write_dram_32(data_col, 0);
 							data_col += sizeof(UINT32);
-							uart_printf("input_row > height");
 						}
+						//uart_printf("input_row(%d) > height(%d)", input_row, height);
+						//uart_printf("p : %d / k : %d / d : %d", -pad_h, kernel_row, dilation_h);
 					}
 					else {
 						UINT32 input_col = -pad_w + kernel_col * dilation_w;
 						for (UINT32 output_col = output_w; output_col; output_col--) {
-							if (input_col < width) {
+							if ((input_col < width) && (input_col > 0)) {
 								//*(data_col++) = data_im[input_row * width + input_col];
 								temp = read_dram_32(data_im + 
 									sizeof(UINT32) * (input_row * width + input_col));
@@ -103,7 +105,6 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 								//*(data_col++) = 0;
 								write_dram_32(data_col, 0);
 								data_col += sizeof(UINT32);
-								uart_printf("input_col > width");
 							}
 							input_col += stride_w;
 						}
@@ -447,6 +448,7 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 		{
 			UINT32 src_offset = ((lpage_addr * SECTORS_PER_PAGE) - WRITE_LBN) / SECTORS_PER_PAGE;
 			//uart_printf("write: %d %d \n", lba, src_offset);
+			/*
 			if (remain_sectors > SECTORS_PER_PAGE) {
 				_mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
 					WR_BUF_PTR(g_ftl_write_buf_id), BYTES_PER_PAGE);
@@ -461,9 +463,12 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 				remain_sectors = 0;
 				sect_offset = 0;
 			}
+			*/
+			_mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
+				WR_BUF_PTR(g_ftl_write_buf_id), BYTES_PER_PAGE);
 
-			//sect_offset = 0;
-			//remain_sectors -= num_sectors_to_write;
+			sect_offset = 0;
+			remain_sectors -= num_sectors_to_write;
 			lpage_addr++;
 
 			g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
@@ -490,7 +495,7 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 		}
 		else if (lba == TRIGGER_LBN)
 		{
-			uart_printf("im2col triggered : %d \n", lba);
+			uart_printf("im2col triggered");
 			im2col_cpu(INPUT_BUF_ADDR, input_param[0],
 				input_param[1], input_param[2],
 				input_param[3], input_param[4],
@@ -498,11 +503,10 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 				input_param[7], input_param[8],
 				input_param[9], input_param[10],
 				OUTPUT_BUF_ADDR);
-			uart_printf("im2col finished\n");
+			uart_printf("im2col finished");
 			UINT32 tmp[10];
 			for (UINT32 i = 0; i < 10; i++) {
 				tmp[i] = read_dram_32(OUTPUT_BUF_ADDR + i * sizeof(UINT32));
-				//uart_printf("%d ", tmp);
 			}
 			uart_printf("im2col : %d %d %d %d %d", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
 
