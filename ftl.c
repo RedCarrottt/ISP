@@ -62,7 +62,8 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 	UINT32 const output_w = (width + 2 * pad_w -
 		(dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
 	UINT32 const channel_size = height * width * sizeof(UINT32);
-	UINT32 temp;
+	UINT32 offset;
+	float zero = (float)0;
 	
 	// parameter print test
 	/*
@@ -80,31 +81,36 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 	for (UINT32 channel = channels; channel--; data_im += channel_size) {
 		for (UINT32 kernel_row = 0; kernel_row < kernel_h; kernel_row++) {
 			for (UINT32 kernel_col = 0; kernel_col < kernel_w; kernel_col++) {
-				UINT32 input_row = -pad_h + kernel_row * dilation_h;
+				int input_row = -pad_h + kernel_row * dilation_h;
 				for (UINT32 output_rows = output_h; output_rows; output_rows--) {
 					if (!((input_row < height) && (input_row >= 0))) {
 						for (UINT32 output_cols = output_w; output_cols; output_cols--) {
 							//*(data_col++) = 0;
-							write_dram_32(data_col, 0);
-							data_col += sizeof(UINT32);
+							//write_dram_32(data_col, (float)0);
+
+							_mem_copy(data_col, &zero, sizeof(zero));
+							data_col += sizeof(float);
 						}
 						//uart_printf("input_row(%d) > height(%d)", input_row, height);
 						//uart_printf("p : %d / k : %d / d : %d", -pad_h, kernel_row, dilation_h);
 					}
 					else {
-						UINT32 input_col = -pad_w + kernel_col * dilation_w;
+						int input_col = -pad_w + kernel_col * dilation_w;
 						for (UINT32 output_col = output_w; output_col; output_col--) {
 							if ((input_col < width) && (input_col > 0)) {
 								//*(data_col++) = data_im[input_row * width + input_col];
-								temp = read_dram_32(data_im + 
-									sizeof(UINT32) * (input_row * width + input_col));
-								write_dram_32(data_col, temp);
-								data_col += sizeof(UINT32);
+								//temp = read_dram_32(data_im +
+								//	sizeof(UINT32) * (input_row * width + input_col));
+								//write_dram_32(data_col, temp);
+								
+								offset = sizeof(float) * (input_row * width + input_col);
+								_mem_copy(data_col, data_im + offset, sizeof(float));
+								data_col += sizeof(float);
 							}
 							else {
 								//*(data_col++) = 0;
-								write_dram_32(data_col, 0);
-								data_col += sizeof(UINT32);
+								_mem_copy(data_col, &zero, sizeof(zero));
+								data_col += sizeof(float);
 							}
 							input_col += stride_w;
 						}
@@ -504,11 +510,9 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 				input_param[9], input_param[10],
 				OUTPUT_BUF_ADDR);
 			uart_printf("im2col finished");
-			UINT32 tmp[10];
-			for (UINT32 i = 0; i < 10; i++) {
-				tmp[i] = read_dram_32(OUTPUT_BUF_ADDR + i * sizeof(UINT32));
-			}
-			uart_printf("im2col : %d %d %d %d %d", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
+			float tmp[10];
+			_mem_copy(tmp, OUTPUT_BUF_ADDR, 5 * 4);
+			uart_printf("im2col : %f %f %f %f %f", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
 
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
