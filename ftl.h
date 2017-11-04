@@ -70,7 +70,7 @@
 #define INPUT_BUF_BYTES		(1024 * 1024)
 
 #define OUTPUT_BUF_ADDR		(INPUT_BUF_ADDR + INPUT_BUF_BYTES)					// general purpose buffer
-#define OUTPUT_BUF_BYTES	(10 * 1024 * 1024)
+#define OUTPUT_BUF_BYTES	(20 * 1024 * 1024)
 
 #define SCAN_LIST_ADDR		(OUTPUT_BUF_ADDR + OUTPUT_BUF_BYTES)				// list of initial bad blocks
 #define SCAN_LIST_BYTES		(SCAN_LIST_SIZE * NUM_BANKS)

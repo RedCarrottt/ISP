@@ -62,7 +62,9 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 		(dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
 	UINT32 const channel_size = height * width * sizeof(UINT32);
 	UINT32 temp;
-
+	
+	// parameter print test
+	/*
 	uart_printf("im2col called\n");
 	uart_printf("channels : %d, h : %d, w : %d\n", channels, height, width);
 	uart_printf("channel size : %d\n", channel_size);
@@ -70,17 +72,21 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 	uart_printf("stride_h : %d, stride_w : %d\n", stride_h, stride_w);
 	uart_printf("dilation_h : %d, dilation_w : %d\n", dilation_h, dilation_w);
 	uart_printf("total loop : %d\n", channels * kernel_h * kernel_w * output_h * output_w);
+	*/
+	uart_printf("input buf : %d", data_im);
+	uart_printf("output buf : %d", data_col);
 
 	for (UINT32 channel = channels; channel--; data_im += channel_size) {
 		for (UINT32 kernel_row = 0; kernel_row < kernel_h; kernel_row++) {
 			for (UINT32 kernel_col = 0; kernel_col < kernel_w; kernel_col++) {
 				UINT32 input_row = -pad_h + kernel_row * dilation_h;
 				for (UINT32 output_rows = output_h; output_rows; output_rows--) {
-					if (!(input_row < height)) {
+					if (!(input_row < height) ) {
 						for (UINT32 output_cols = output_w; output_cols; output_cols--) {
 							//*(data_col++) = 0;
 							write_dram_32(data_col, 0);
 							data_col += sizeof(UINT32);
+							uart_printf("input_row > height");
 						}
 					}
 					else {
@@ -97,6 +103,7 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 								//*(data_col++) = 0;
 								write_dram_32(data_col, 0);
 								data_col += sizeof(UINT32);
+								uart_printf("input_col > width");
 							}
 							input_col += stride_w;
 						}
@@ -104,9 +111,9 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 					input_row += stride_h;
 				}
 			}
-			uart_printf("1 kernel_row done\n");
+			//uart_printf("1 kernel_row done\n");
 		}
-		uart_printf("1 channel done\n");
+		//uart_printf("1 channel done\n");
 	}
 }
 // @halfways : end
@@ -254,7 +261,8 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 	UINT32 sectors_remain	= total_sectors;
 
 	if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE)) {
-		uart_printf("lba in READ_AREA : %d reached\n", lba);
+		uart_printf("lba in READ_AREA : %d, total sectors : %d, sectors per page : %d",
+			lba, total_sectors, SECTORS_PER_PAGE);
 	}
 	while (sectors_remain != 0)	// one page per iteration
 	{
@@ -269,43 +277,7 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 
 		temp = get_physical_address(lpage_addr);	// logical to physical mapping
 
-		// @halfways : start ftl_read special case
-		//if (lpage_addr >= (READ_LBN / 32) && lpage_addr < ((READ_LBN + READ_AREA_SIZE) / 32))
-		if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE))
-		{
-			UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
-			UINT32 src_offset = ((lpage_addr * 32) - READ_LBN) / 32;
-			
-			uart_printf("read: %d %d \n", lpage_addr, src_offset);
-
-			_mem_copy(RD_BUF_PTR(g_ftl_read_buf_id), OUTPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE, 16 * 1024);
-
-#if OPTION_FTL_TEST == 0
-			while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
-
-																// fix bug @ v.1.0.6
-																// Send 0xFF...FF to host when the host request to read the sector that has never been written.
-																// In old version, for example, if the host request to read unwritten sector 0 after programming in sector 1, Jasmine would send 0x00...00 to host.
-																// However, if the host already wrote to sector 1, Jasmine would send 0xFF...FF to host when host request to read sector 0. (ftl_read() in ftl_xxx/ftl.c)
-			mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + sect_offset*BYTES_PER_SECTOR,
-				0xFFFFFFFF, num_sectors_to_read*BYTES_PER_SECTOR);
-
-			while (GETREG(MON_CHABANKIDLE) != 0);	// This while() loop ensures that Waiting Room is empty and all the banks are idle.
-
-													// bm_read_limit is automatically updated by Buffer Manager hardware when a flash command with FO_B_SATA_R is finished.
-													// Now we are going to update bm_read_limit without any flash command. (forced update by firmware)
-													// The while() statement above ensures that there is no flash command with FO_B_SATA_R in progress at the moment bm_read_limit
-													// is updated by firmware. Without it, one or more flash commands with FO_B_SATA_R can be active now,
-													// which will lead to a race condition between Buffer Manager and firmware.
-
-			SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-			SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
-
-			g_ftl_read_buf_id = next_read_buf_id;
-		}
-		// @halfways : end
-		else if (temp != NULL)
+		if (temp != NULL)
 		{
 			bank = temp / PAGES_PER_BANK;	// most significant bits represent bank number
 			row = temp % PAGES_PER_BANK;	// and remaining bits represent page number within the bank
@@ -342,6 +314,42 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 			// Now that all the FCP registers contain valid values, we can call flash_issue_cmd().
 			flash_issue_cmd(bank, RETURN_ON_ISSUE);
 		}
+		// @halfways : start ftl_read special case
+		//if (lpage_addr >= (READ_LBN / 32) && lpage_addr < ((READ_LBN + READ_AREA_SIZE) / 32))
+		else if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE))
+		{
+			UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+			UINT32 src_offset = ((lpage_addr * SECTORS_PER_PAGE) - READ_LBN) / SECTORS_PER_PAGE;
+
+			//uart_printf("read: %d - %d", lpage_addr, src_offset);
+
+			_mem_copy(RD_BUF_PTR(g_ftl_read_buf_id), OUTPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE, BYTES_PER_PAGE);
+
+#if OPTION_FTL_TEST == 0
+			while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+#endif
+
+																// fix bug @ v.1.0.6
+																// Send 0xFF...FF to host when the host request to read the sector that has never been written.
+																// In old version, for example, if the host request to read unwritten sector 0 after programming in sector 1, Jasmine would send 0x00...00 to host.
+																// However, if the host already wrote to sector 1, Jasmine would send 0xFF...FF to host when host request to read sector 0. (ftl_read() in ftl_xxx/ftl.c)
+			mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + sect_offset*BYTES_PER_SECTOR,
+				0xFFFFFFFF, num_sectors_to_read*BYTES_PER_SECTOR);
+
+			while (GETREG(MON_CHABANKIDLE) != 0);	// This while() loop ensures that Waiting Room is empty and all the banks are idle.
+
+													// bm_read_limit is automatically updated by Buffer Manager hardware when a flash command with FO_B_SATA_R is finished.
+													// Now we are going to update bm_read_limit without any flash command. (forced update by firmware)
+													// The while() statement above ensures that there is no flash command with FO_B_SATA_R in progress at the moment bm_read_limit
+													// is updated by firmware. Without it, one or more flash commands with FO_B_SATA_R can be active now,
+													// which will lead to a race condition between Buffer Manager and firmware.
+
+			SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+			SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+
+			g_ftl_read_buf_id = next_read_buf_id;
+		}
+		// @halfways : end
 		else
 		{
 			// The host is requesting to read a logical page that has never been written to.
@@ -386,6 +394,11 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 	UINT32 lpage_addr	= lba / SECTORS_PER_PAGE;
 	UINT32 sect_offset	= lba % SECTORS_PER_PAGE;
 	UINT32 remain_sectors = total_sectors;
+	
+	if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN))
+	{
+		uart_printf("write on %d, total size : %d \n", lba, total_sectors);
+	}
 
 	while (remain_sectors != 0)
 	{
@@ -428,16 +441,29 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 
 		left_hole_sectors = sect_offset;
 		read_old_data = FALSE;
-
+		
 		// @halfways : start ftl_write special func
 		if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN))
 		{
-			UINT32 src_offset = (lba  - WRITE_LBN) / 32;
-			uart_printf("write: %d %d \n", lba, src_offset);
-			_mem_copy(INPUT_BUF_ADDR + src_offset * 16 * 1024, WR_BUF_PTR(g_ftl_write_buf_id), 16 * 1024);
+			UINT32 src_offset = ((lpage_addr * SECTORS_PER_PAGE) - WRITE_LBN) / SECTORS_PER_PAGE;
+			//uart_printf("write: %d %d \n", lba, src_offset);
+			if (remain_sectors > SECTORS_PER_PAGE) {
+				_mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
+					WR_BUF_PTR(g_ftl_write_buf_id), BYTES_PER_PAGE);
+				// WR_BUF_PTR size : BYTES_PER_PAGE
 
-			sect_offset = 0;
-			remain_sectors -= num_sectors_to_write;
+				remain_sectors -= SECTORS_PER_PAGE;
+			}
+			else {
+				_mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
+					WR_BUF_PTR(g_ftl_write_buf_id), remain_sectors * BYTES_PER_SECTOR);
+
+				remain_sectors = 0;
+				sect_offset = 0;
+			}
+
+			//sect_offset = 0;
+			//remain_sectors -= num_sectors_to_write;
 			lpage_addr++;
 
 			g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
@@ -446,16 +472,11 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 
 			continue;
 		}
-		else if (lba == PARAMETER_LBN || lba == READ_LBN)
+		else if (lba == PARAMETER_LBN)
 		{
-			if (lba == READ_LBN) {
-				uart_printf("write on READ_LBN : %d\n", lba);
-			}
-			else {
-				uart_printf("param write: %d \n", lba);
-				// get parameter
-				_mem_copy(input_param, WR_BUF_PTR(g_ftl_write_buf_id), 16 * 4);
-			}
+			uart_printf("param write: %d \n", lba);
+			// get parameter
+			_mem_copy(input_param, WR_BUF_PTR(g_ftl_write_buf_id), 16 * 4);
 
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
@@ -478,6 +499,12 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 				input_param[9], input_param[10],
 				OUTPUT_BUF_ADDR);
 			uart_printf("im2col finished\n");
+			UINT32 tmp[10];
+			for (UINT32 i = 0; i < 10; i++) {
+				tmp[i] = read_dram_32(OUTPUT_BUF_ADDR + i * sizeof(UINT32));
+				//uart_printf("%d ", tmp);
+			}
+			uart_printf("im2col : %d %d %d %d %d", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
 
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
