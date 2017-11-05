@@ -88,11 +88,15 @@ void im2col_cpu(int data_im, int const channels,
 						for (int output_cols = output_w; output_cols; output_cols--) {
 							//*(data_col++) = 0;
 							//write_dram_32(data_col, (float)0);
-							if (data_col > DRAM_SIZE) {
+							if (data_col > DRAM_BASE + DRAM_SIZE) {
 								flag = 1;
+								uart_printf("DRAM size overflow");
+								uart_printf("flag : %d, data_col : %d, data_im %d",
+									flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
+								uart_printf("input_row : %d", input_row);
 								break;
 							}
-							mem_set_dram(data_col, 0x00000000, sizeof(float));
+							mem_set_dram(data_col, 0, sizeof(float));
 							data_col += sizeof(float);
 						}
 						if (flag > 0)
@@ -101,7 +105,7 @@ void im2col_cpu(int data_im, int const channels,
 					else {
 						int input_col = -pad_w + kernel_col * dilation_w;
 						for (int output_col = output_w; output_col; output_col--) {
-							if ((input_col < width) && (input_col > 0)) {
+							if ((input_col < width) && (input_col >= 0)) {
 								//*(data_col++) = data_im[input_row * width + input_col];
 								//temp = read_dram_32(data_im +
 								//	sizeof(UINT32) * (input_row * width + input_col));
@@ -109,29 +113,41 @@ void im2col_cpu(int data_im, int const channels,
 
 								offset = sizeof(float) * (input_row * width + input_col);
 								
-								if (data_col > DRAM_SIZE) {
+								if (data_col > DRAM_BASE + DRAM_SIZE) {
 									flag = 2;
+									uart_printf("DRAM size overflow");
+									uart_printf("flag : %d, data_col : %d, data_im %d",
+										flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
+									uart_printf("input_row : %d, input_col : %d", input_row, input_col);
 									break;
 								}
-								else if (data_im + offset > DRAM_SIZE) {
+								else if (data_im + offset > DRAM_BASE + DRAM_SIZE) {
 									flag = 3;
+									uart_printf("DRAM size overflow");
+									uart_printf("flag : %d, data_col : %d, data_im %d",
+										flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
+									uart_printf("input_row : %d, input_col : %d", input_row, input_col);
 									break;
 								}
 																
-								//mem_copy(&temp, data_im + offset, sizeof(float));
-								//mem_copy(data_col, &temp, sizeof(float));
-								mem_copy(data_col, data_im + offset, sizeof(float));
+								mem_copy(&temp, data_im + offset, sizeof(float));
+								mem_copy(data_col, &temp, sizeof(float));
+								//mem_copy(data_col, data_im + offset, sizeof(float));
 								data_col += sizeof(float);
 							}
 							else {
 								//*(data_col++) = 0;
 
-								if (data_col > DRAM_SIZE) {
+								if (data_col > DRAM_BASE + DRAM_SIZE) {
 									flag = 4;
+									uart_printf("DRAM size overflow");
+									uart_printf("flag : %d, data_col : %d, data_im %d",
+										flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
+									uart_printf("input_row : %d, input_col : %d", input_row, input_col);
 									break;
 								}
 
-								mem_set_dram(data_col, 0x00000000, sizeof(float));
+								mem_set_dram(data_col, 0, sizeof(float));
 								data_col += sizeof(float);
 							}
 							input_col += stride_w;
@@ -139,9 +155,9 @@ void im2col_cpu(int data_im, int const channels,
 						if (flag > 0)
 							break;
 					}
-					input_row += stride_h;
 					if (flag > 0)
 						break;
+					input_row += stride_h;					
 				}
 				if (flag > 0)
 					break;
@@ -154,12 +170,9 @@ void im2col_cpu(int data_im, int const channels,
 			break;
 		//uart_printf("1 channel done\n");
 	}
-	if (flag > 0) {
-		uart_printf("DRAM size overflow");
-		uart_printf("flag : %d, data_col : %d, data_im %d", flag, data_col, data_im);
-	}
-	else
+	if (flag == 0) {
 		uart_printf("im2col finished");
+	}
 }
 // @halfways : end
 
@@ -310,9 +323,9 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 		uart_printf("lba in READ_AREA : %d, total sectors : %d", lba, total_sectors);
 	}
 	*/
-	if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN)) {
-		uart_printf("read in WRITE_AREA : %d, total sectors : %d", lba, total_sectors);
-	}
+	//if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN)) {
+	//	uart_printf("read in WRITE_AREA : %d, total sectors : %d", lba, total_sectors);
+	//}
 	
 	while (sectors_remain != 0)	// one page per iteration
 	{
@@ -482,10 +495,10 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 	UINT32 remain_sectors = total_sectors;
 	
 	
-	if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN))
-	{
-		uart_printf("write on %d, total size : %d \n", lba, total_sectors);
-	}
+	//if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN))
+	//{
+	//	uart_printf("write on %d, total size : %d \n", lba, total_sectors);
+	//}
 
 	while (remain_sectors != 0)
 	{
@@ -534,22 +547,7 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 		{
 			UINT32 src_offset = ((lpage_addr * SECTORS_PER_PAGE) - WRITE_LBN) / SECTORS_PER_PAGE;
 			//uart_printf("write: %d %d \n", lba, src_offset);
-			/*
-			if (remain_sectors > SECTORS_PER_PAGE) {
-				_mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
-					WR_BUF_PTR(g_ftl_write_buf_id), BYTES_PER_PAGE);
-				// WR_BUF_PTR size : BYTES_PER_PAGE
-
-				remain_sectors -= SECTORS_PER_PAGE;
-			}
-			else {
-				_mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
-					WR_BUF_PTR(g_ftl_write_buf_id), remain_sectors * BYTES_PER_SECTOR);
-
-				remain_sectors = 0;
-				sect_offset = 0;
-			}
-			*/
+			
 			mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
 				WR_BUF_PTR(g_ftl_write_buf_id), BYTES_PER_PAGE);
 
