@@ -558,7 +558,7 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 			lpage_addr++;
 
 			g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
-			SETREG(BM_STACK_RDSET, g_ftl_write_buf_id);	// change bm_read_limit
+			SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
 			SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
 
 			continue;
@@ -574,7 +574,7 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 			lpage_addr++;
 
 			g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
-			SETREG(BM_STACK_RDSET, g_ftl_write_buf_id);	// change bm_read_limit
+			SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
 			SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
 
 			break;
@@ -599,7 +599,7 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 			lpage_addr++;
 
 			g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;		// Circular buffer
-			SETREG(BM_STACK_RDSET, g_ftl_write_buf_id);	// change bm_read_limit
+			SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_read_limit
 			SETREG(BM_STACK_RESET, 0x01);				// change bm_read_limit
 
 			break;
