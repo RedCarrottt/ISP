@@ -62,10 +62,10 @@ void im2col_cpu(int data_im, int const channels,
 		(dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
 	int const channel_size = height * width * sizeof(int);
 	int offset;
-	int flag = 0;
 	float temp;
 
 	uart_printf("im2col start");
+
 	// parameter print test
 	/*
 	uart_printf("im2col called\n");
@@ -76,9 +76,7 @@ void im2col_cpu(int data_im, int const channels,
 	uart_printf("dilation_h : %d, dilation_w : %d\n", dilation_h, dilation_w);
 	uart_printf("total loop : %d\n", channels * kernel_h * kernel_w * output_h * output_w);
 	*/
-	//uart_printf("input buf : %d", data_im);
-	//uart_printf("output buf : %d", data_col);
-	
+
 	for (int channel = channels; channel--; data_im += channel_size) {
 		for (int kernel_row = 0; kernel_row < kernel_h; kernel_row++) {
 			for (int kernel_col = 0; kernel_col < kernel_w; kernel_col++) {
@@ -87,92 +85,34 @@ void im2col_cpu(int data_im, int const channels,
 					if (!((input_row < height) && (input_row >= 0))) {
 						for (int output_cols = output_w; output_cols; output_cols--) {
 							//*(data_col++) = 0;
-							//write_dram_32(data_col, (float)0);
-							if (data_col > DRAM_BASE + DRAM_SIZE) {
-								flag = 1;
-								uart_printf("DRAM size overflow");
-								uart_printf("flag : %d, data_col : %d, data_im %d",
-									flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
-								uart_printf("input_row : %d", input_row);
-								break;
-							}
 							mem_set_dram(data_col, 0, sizeof(float));
 							data_col += sizeof(float);
 						}
-						if (flag > 0)
-							break;
 					}
 					else {
 						int input_col = -pad_w + kernel_col * dilation_w;
 						for (int output_col = output_w; output_col; output_col--) {
 							if ((input_col < width) && (input_col >= 0)) {
 								//*(data_col++) = data_im[input_row * width + input_col];
-								//temp = read_dram_32(data_im +
-								//	sizeof(UINT32) * (input_row * width + input_col));
-								//write_dram_32(data_col, temp);
-
 								offset = sizeof(float) * (input_row * width + input_col);
-								
-								if (data_col > DRAM_BASE + DRAM_SIZE) {
-									flag = 2;
-									uart_printf("DRAM size overflow");
-									uart_printf("flag : %d, data_col : %d, data_im %d",
-										flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
-									uart_printf("input_row : %d, input_col : %d", input_row, input_col);
-									break;
-								}
-								else if (data_im + offset > DRAM_BASE + DRAM_SIZE) {
-									flag = 3;
-									uart_printf("DRAM size overflow");
-									uart_printf("flag : %d, data_col : %d, data_im %d",
-										flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
-									uart_printf("input_row : %d, input_col : %d", input_row, input_col);
-									break;
-								}
-																
 								mem_copy(&temp, data_im + offset, sizeof(float));
 								mem_copy(data_col, &temp, sizeof(float));
-								//mem_copy(data_col, data_im + offset, sizeof(float));
 								data_col += sizeof(float);
 							}
 							else {
 								//*(data_col++) = 0;
-
-								if (data_col > DRAM_BASE + DRAM_SIZE) {
-									flag = 4;
-									uart_printf("DRAM size overflow");
-									uart_printf("flag : %d, data_col : %d, data_im %d",
-										flag, data_col - OUTPUT_BUF_ADDR, data_im - INPUT_BUF_ADDR);
-									uart_printf("input_row : %d, input_col : %d", input_row, input_col);
-									break;
-								}
-
 								mem_set_dram(data_col, 0, sizeof(float));
 								data_col += sizeof(float);
 							}
 							input_col += stride_w;
 						}
-						if (flag > 0)
-							break;
 					}
-					if (flag > 0)
-						break;
 					input_row += stride_h;					
 				}
-				if (flag > 0)
-					break;
 			}
-			if (flag > 0)
-				break;
-			//uart_printf("1 kernel_row done\n");
 		}
-		if (flag > 0)
-			break;
-		//uart_printf("1 channel done\n");
 	}
-	if (flag == 0) {
-		uart_printf("im2col finished");
-	}
+	uart_printf("im2col finished");
 }
 // @halfways : end
 
@@ -322,10 +262,11 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 	if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE)) {
 		uart_printf("lba in READ_AREA : %d, total sectors : %d", lba, total_sectors);
 	}
+	
+	if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN)) {
+		uart_printf("read in WRITE_AREA : %d, total sectors : %d", lba, total_sectors);
+	}
 	*/
-	//if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN)) {
-	//	uart_printf("read in WRITE_AREA : %d, total sectors : %d", lba, total_sectors);
-	//}
 	
 	while (sectors_remain != 0)	// one page per iteration
 	{
@@ -412,42 +353,6 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 
 			g_ftl_read_buf_id = next_read_buf_id;
 		}
-		/*
-		else if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN))
-		{
-			UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
-			UINT32 src_offset = ((lpage_addr * SECTORS_PER_PAGE) - WRITE_LBN) / SECTORS_PER_PAGE;
-
-			//uart_printf("read: %d - %d", lpage_addr, src_offset);
-
-			mem_copy(RD_BUF_PTR(g_ftl_read_buf_id), INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE, BYTES_PER_PAGE);
-
-#if OPTION_FTL_TEST == 0
-			while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
-#endif
-
-																	// fix bug @ v.1.0.6
-																	// Send 0xFF...FF to host when the host request to read the sector that has never been written.
-																	// In old version, for example, if the host request to read unwritten sector 0 after programming in sector 1, Jasmine would send 0x00...00 to host.
-																	// However, if the host already wrote to sector 1, Jasmine would send 0xFF...FF to host when host request to read sector 0. (ftl_read() in ftl_xxx/ftl.c)
-			//mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) + sect_offset*BYTES_PER_SECTOR,
-			//	0xFFFFFFFF, num_sectors_to_read*BYTES_PER_SECTOR);
-			// needed?
-
-			while (GETREG(MON_CHABANKIDLE) != 0);	// This while() loop ensures that Waiting Room is empty and all the banks are idle.
-
-													// bm_read_limit is automatically updated by Buffer Manager hardware when a flash command with FO_B_SATA_R is finished.
-													// Now we are going to update bm_read_limit without any flash command. (forced update by firmware)
-													// The while() statement above ensures that there is no flash command with FO_B_SATA_R in progress at the moment bm_read_limit
-													// is updated by firmware. Without it, one or more flash commands with FO_B_SATA_R can be active now,
-													// which will lead to a race condition between Buffer Manager and firmware.
-
-			SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
-			SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
-
-			g_ftl_read_buf_id = next_read_buf_id;
-		}
-		*/
 		// @halfways : end
 		else
 		{
@@ -551,6 +456,12 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 			mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
 				WR_BUF_PTR(g_ftl_write_buf_id), BYTES_PER_PAGE);
 
+			if (src_offset == 0) {
+				float tmp[16];
+				mem_copy(tmp, INPUT_BUF_ADDR, 16 * 4);
+				uart_printf("write : %f %f %f %f %f", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
+			}
+			
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
 			lpage_addr++;
@@ -563,7 +474,7 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 		}
 		else if (lba == PARAMETER_LBN)
 		{
-			uart_printf("param write: %d", lba);
+			//uart_printf("param write: %d", lba);
 			// get parameter
 			mem_copy(input_param, WR_BUF_PTR(g_ftl_write_buf_id), 16 * 4);
 
@@ -588,9 +499,9 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 				input_param[9], input_param[10],
 				OUTPUT_BUF_ADDR);
 			//uart_printf("im2col finished");
-			float tmp[16];
-			mem_copy(tmp, OUTPUT_BUF_ADDR, 16 * 4);
-			uart_printf("im2col : %f %f %f %f %f", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
+			//float tmp[16];
+			//mem_copy(tmp, OUTPUT_BUF_ADDR, 16 * 4);
+			//uart_printf("im2col : %f %f %f %f %f", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
 
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
