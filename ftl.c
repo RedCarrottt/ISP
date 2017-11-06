@@ -60,7 +60,7 @@ void im2col_cpu(UINT32 data_im, UINT32 const channels,
 		(dilation_h * (kernel_h - 1) + 1)) / stride_h + 1;
 	UINT32 const output_w = (width + 2 * pad_w -
 		(dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
-	UINT32 const channel_size = height * width;
+	UINT32 const channel_size = height * width * sizeof(UINT32);
 	UINT32 temp;
 
 	for (UINT32 channel = channels; channel--; data_im += channel_size) {
