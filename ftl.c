@@ -60,18 +60,6 @@ void im2col_cpu(int data_im, int const channels,
 		(dilation_h * (kernel_h - 1) + 1)) / stride_h + 1;
 	int const output_w = (width + 2 * pad_w -
 		(dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
-<<<<<<< HEAD
-	UINT32 const channel_size = height * width * sizeof(UINT32);
-	UINT32 temp;
-
-	for (UINT32 channel = channels; channel--; data_im += channel_size) {
-		for (UINT32 kernel_row = 0; kernel_row < kernel_h; kernel_row++) {
-			for (UINT32 kernel_col = 0; kernel_col < kernel_w; kernel_col++) {
-				UINT32 input_row = -pad_h + kernel_row * dilation_h;
-				for (UINT32 output_rows = output_h; output_rows; output_rows--) {
-					if (!(input_row < height)) {
-						for (UINT32 output_cols = output_w; output_cols; output_cols--) {
-=======
 	int const channel_size = height * width * sizeof(int);
 	int offset;
 	float temp;
@@ -95,7 +83,6 @@ void im2col_cpu(int data_im, int const channels,
 				for (int output_rows = output_h; output_rows; output_rows--) {
 					if (!((input_row < height) && (input_row >= 0))) {
 						for (int output_cols = output_w; output_cols; output_cols--) {
->>>>>>> refs/remotes/origin/master
 							//*(data_col++) = 0;
 							mem_set_dram(data_col, 0, sizeof(float));
 							data_col += sizeof(float);
@@ -272,10 +259,10 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 	UINT32 sectors_remain	= total_sectors;
 
 	
-	if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE)) {
-		uart_printf("lba in READ_AREA : %d, total sectors : %d", lba, total_sectors);
-		ptimer_start();
-	}
+	//if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE)) {
+	//	uart_printf("lba in READ_AREA : %d, total sectors : %d", lba, total_sectors);
+	//	ptimer_start();
+	//}
 	/*
 	if (lba >= WRITE_LBN && lba < (WRITE_AREA_SIZE + WRITE_LBN)) {
 		uart_printf("read in WRITE_AREA : %d, total sectors : %d", lba, total_sectors);
@@ -403,9 +390,9 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 		sectors_remain -= num_sectors_to_read;
 		lpage_addr++;
 	}
-	if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE)) {
-		ptimer_stop_and_uart_print();
-	}
+	//if (lba >= READ_LBN && lba < (READ_LBN + READ_AREA_SIZE)) {
+	//	ptimer_stop_and_uart_print();
+	//}
 }
 
 void ftl_write(UINT32 const lba, UINT32 const total_sectors)
@@ -470,11 +457,11 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 			UINT32 src_offset = ((lpage_addr * SECTORS_PER_PAGE) - WRITE_LBN) / SECTORS_PER_PAGE;
 			//uart_printf("write: %d %d \n", lba, src_offset);
 			
-			uart_printf("timer for 1page mem_copy");
-			ptimer_start();
+			//uart_printf("timer for 1page mem_copy");
+			//ptimer_start();
 			mem_copy(INPUT_BUF_ADDR + src_offset * BYTES_PER_PAGE,
 				WR_BUF_PTR(g_ftl_write_buf_id), BYTES_PER_PAGE);
-			ptimer_stop_and_uart_print();
+			//ptimer_stop_and_uart_print();
 
 			//if (src_offset == 0) {
 			//	float tmp[16];
@@ -496,10 +483,10 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 		{
 			//uart_printf("param write: %d", lba);
 			// get parameter
-			uart_printf("timer for 64bytes mem_copy");
-			ptimer_start();
+			//uart_printf("timer for 64bytes mem_copy");
+			//ptimer_start();
 			mem_copy(input_param, WR_BUF_PTR(g_ftl_write_buf_id), 16 * 4);
-			ptimer_stop_and_uart_print();
+			//ptimer_stop_and_uart_print();
 
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
@@ -526,11 +513,11 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 			//mem_copy(tmp, OUTPUT_BUF_ADDR, 16 * 4);
 			//uart_printf("im2col : %f %f %f %f %f", tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
 
-			float tmp;
-			uart_printf("timer for 4bytes mem_copy");
-			ptimer_start();
-			mem_copy(&tmp, OUTPUT_BUF_ADDR, 4);
-			ptimer_stop_and_uart_print();
+			//float tmp;
+			//uart_printf("timer for 4bytes mem_copy");
+			//ptimer_start();
+			//mem_copy(&tmp, OUTPUT_BUF_ADDR, 4);
+			//ptimer_stop_and_uart_print();
 
 			sect_offset = 0;
 			remain_sectors -= num_sectors_to_write;
